@@ -1,0 +1,1422 @@
+File: .\AppMarkovitz.jsx
+import React, { Fragment, useState, useEffect } from "react";
+import Box from "@mui/material/Box";
+import { styled } from "@mui/material/styles";
+import CircularProgress from "@mui/material/CircularProgress";
+import BadgeAutocompletePage from "./BadgeAutocompletePage";
+import TangencyWeightsPage from "./TangencyWeightsPage";
+import PerformanceAssetsPage from "./PerformanceAssetsPage";
+import PerformanceIBOVPage from "./PerformanceIBOVPage";
+import TangencyStatsPage from "./TangencyStatsPage";
+import MinVarStatsPage from "./MinVarStatsPage";
+import MinVarWeightsPage from "./MinVarWeightsPage";
+import MinVarPerformanceAssetsPage from "./MinVarPerformanceAssetsPage";
+import MinVarPerformanceIBOVPage from "./MinVarPerformanceIBOVPage";
+import { Grid } from "@mui/material";
+
+const Container = styled("div")(({ theme }) => ({
+  maxWidth: "1500px",
+  padding: "20px 1px",
+  margin: "0 auto",
+  [theme.breakpoints.down("sm")]: {
+    margin: "13px",
+    padding: "10px 5px",
+    maxWidth: "100%",
+  },
+}));
+
+export default function AppMarkovitz() {
+  const [optimizationData, setOptimizationData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleDataReceived = (data) => {
+    console.log("Data received in AppMarkovitz:", data);
+    try {
+      let parsedData;
+      if (typeof data === 'string') {
+        // Replace NaN with null before parsing
+        parsedData = JSON.parse(data.replace(/:\s*NaN/g, ': null'));
+      } else {
+        // If it's already an object, deep clone it and replace NaN with null
+        parsedData = JSON.parse(JSON.stringify(data, (key, value) =>
+          value !== value ? null : value
+        ));
+      }
+      setOptimizationData(parsedData);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error processing optimization data:", error);
+      setIsLoading(false);
+      // You might want to set an error state here and display it to the user
+    }
+  };
+  useEffect(() => {
+    console.log("optimizationData updated:", optimizationData);
+  }, [optimizationData]);
+
+  return (
+    <Fragment>
+      <Container>
+        {/* First row */}
+        <Box sx={{ width: "100%", marginBottom: 1 }}>
+          <BadgeAutocompletePage 
+            onDataReceived={handleDataReceived}
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+          />
+        </Box>
+
+        {isLoading ? (
+          <CircularProgress />
+        ) : (
+          optimizationData && (
+            <>
+              {/* Second row - Tangency Portfolio */}
+              <Grid container spacing={1}>
+                <Grid item xs={12} sm={6} md={1.7}>
+                  <TangencyWeightsPage data={optimizationData?.tangency_data?.weights} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <PerformanceAssetsPage data={optimizationData?.tangency_data} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <PerformanceIBOVPage data={optimizationData?.tangency_data} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={2}>
+                  <TangencyStatsPage data={optimizationData?.tangency_data} />
+                </Grid>
+              </Grid>
+
+              {/* Third row - Minimum Variance Portfolio */}
+              <Grid container spacing={1}>
+                <Grid item xs={12} sm={6} md={1.7}>
+                  <MinVarWeightsPage data={{weights: optimizationData?.min_variance_data?.weights}} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <MinVarPerformanceAssetsPage data={optimizationData?.min_variance_data} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <MinVarPerformanceIBOVPage data={optimizationData?.min_variance_data} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={2}>
+                  <MinVarStatsPage data={optimizationData?.min_variance_data} />
+                </Grid>
+              </Grid>
+            </>
+          )
+        )}
+      </Container>
+    </Fragment>
+  );
+}
+
+################################################################################
+
+File: .\BadgeAutocomplete.jsx
+import React, { useState } from 'react';
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import { useTheme } from "@mui/material/styles";
+import StandaloneRadio from './StandaloneRadio'; // Adjust the import path as necessary
+import Button from "@mui/material/Button";
+import { styled } from "@mui/material/styles";
+import axios from 'axios'; // Make sure to install axios: npm install axios
+// Ibovespa stocks
+const stocks = [
+  { symbol: "BOVA11" }, { symbol: "HAPV3" }, { symbol: "B3SA3" }, { symbol: "ABEV3" }, 
+  { symbol: "COGN3" }, { symbol: "PETR4" }, { symbol: "CVCB3" }, { symbol: "BBDC4" }, 
+  { symbol: "VALE3" }, { symbol: "ITSA4" }, { symbol: "MGLU3" }, { symbol: "RAIL3" }, 
+  { symbol: "CSAN3" }, { symbol: "CPLE6" }, { symbol: "AZUL4" }, { symbol: "ITUB4" }, 
+  { symbol: "BBAS3" }, { symbol: "ASAI3" }, { symbol: "LREN3" }, { symbol: "RAIZ4" }, 
+  { symbol: "USIM5" }, { symbol: "GOLL4" }, { symbol: "VBBR3" }, { symbol: "PETR3" }, 
+  { symbol: "WEGE3" }, { symbol: "ANIM3" }, { symbol: "BBDC3" }, { symbol: "AMOB3" }, 
+  { symbol: "CRFB3" }, { symbol: "CSNA3" }, { symbol: "EQTL3" }, { symbol: "CMIG4" }, 
+  { symbol: "ONCO3" }, { symbol: "GGBR4" }, { symbol: "TIMS3" }, { symbol: "RADL3" }, 
+  { symbol: "PCAR3" }, { symbol: "RDOR3" }, { symbol: "POMO4" }, { symbol: "GOAU4" }, 
+  { symbol: "RENT3" }, { symbol: "CCRO3" }, { symbol: "AURE3" }, { symbol: "PETZ3" }, 
+  { symbol: "MRVE3" }, { symbol: "LWSA3" }, { symbol: "BRAV3" }, { symbol: "BEEF3" }, 
+  { symbol: "MOVI3" }, { symbol: "BRFS3" }, { symbol: "RCSL3" }, { symbol: "EMBR3" }, 
+  { symbol: "JBSS3" }, { symbol: "BHIA3" }, { symbol: "BPAC11" }, { symbol: "PRIO3" }, 
+  { symbol: "UGPA3" }, { symbol: "GFSA3" }, { symbol: "VVEO3" }, { symbol: "ENEV3" }, 
+  { symbol: "ELET3" }, { symbol: "CPLE3" }, { symbol: "QUAL3" }, { symbol: "SIMH3" }, 
+  { symbol: "STBP3" }, { symbol: "NTCO3" }, { symbol: "MRFG3" }, { symbol: "CBAV3" }, 
+  { symbol: "MLAS3" }, { symbol: "CEAB3" }, { symbol: "CMIN3" }, { symbol: "HYPE3" }, 
+  { symbol: "GMAT3" }, { symbol: "TOTS3" }, { symbol: "VAMO3" }, { symbol: "YDUQ3" }, 
+  { symbol: "KLBN11" }, { symbol: "BBSE3" }, { symbol: "AZEV4" }, { symbol: "EGIE3" }, 
+  { symbol: "SUZB3" }, { symbol: "BRKM5" }, { symbol: "GGPS3" }, { symbol: "ALPA4" }, 
+  { symbol: "LJQQ3" }, { symbol: "BRAP4" }, { symbol: "CXSE3" }, { symbol: "ALOS3" }, 
+  { symbol: "PSSA3" }, { symbol: "ECOR3" }, { symbol: "FLRY3" }, { symbol: "PLPL3" }, 
+  { symbol: "CYRE3" }, { symbol: "VIVT3" }, { symbol: "TEND3" }, { symbol: "JHSF3" }, 
+  { symbol: "SBSP3" }, { symbol: "IRBR3" }, { symbol: "RCSL4" }, { symbol: "ENGI11" }, 
+  { symbol: "HBSA3" }, { symbol: "IFCM3" }, { symbol: "MULT3" }, { symbol: "INTB3" }, 
+  { symbol: "AGXY3" }, { symbol: "ISAE4" }, { symbol: "AMER3" }, { symbol: "DXCO3" }, 
+  { symbol: "PDGR3" }, { symbol: "SMFT3" }, { symbol: "SLCE3" }, { symbol: "CPFE3" }, 
+  { symbol: "EZTC3" },{ symbol: "VIVA3" }, { symbol: "IGTI11" }, { symbol: "CURY3" }, { symbol: "RECV3" },
+  { symbol: "DIRR3" }, { symbol: "AZZA3" }, { symbol: "SRNA3" }, { symbol: "TTEN3" },
+  { symbol: "SAPR4" }, { symbol: "SBFG3" }, { symbol: "OIBR3" }, { symbol: "RAPT4" },
+  { symbol: "SANB11" }, { symbol: "SEQL3" }, { symbol: "ELET6" }, { symbol: "EVEN3" },
+  { symbol: "TAEE11" }, { symbol: "BRSR6" }, { symbol: "MDIA3" }, { symbol: "CSMG3" },
+  { symbol: "GRND3" }, { symbol: "ODPV3" }, { symbol: "LAVV3" }, { symbol: "MYPK3" },
+  { symbol: "SYNE3" }, { symbol: "PGMN3" }, { symbol: "SAPR11" }, { symbol: "VULC3" },
+  { symbol: "JALL3" }, { symbol: "CAML3" }, { symbol: "BPAN4" }, { symbol: "ZAMP3" },
+  { symbol: "GUAR3" }, { symbol: "SMTO3" }, { symbol: "KLBN4" }, { symbol: "HBOR3" },
+  { symbol: "KEPL3" }, { symbol: "PORT3" }, { symbol: "AZEV3" }, { symbol: "RANI3" },
+  { symbol: "CASH3" }, { symbol: "NEOE3" }, { symbol: "TUPY3" }, { symbol: "MEAL3" },
+  { symbol: "POSI3" }, { symbol: "MILS3" }, { symbol: "MATD3" }, { symbol: "BMGB4" },
+  { symbol: "WIZC3" }, { symbol: "ABCB4" }, { symbol: "ORVR3" }, { symbol: "ITUB3" },
+  { symbol: "ARML3" }, { symbol: "FRAS3" }, { symbol: "CLSA3" }, { symbol: "PMAM3" },
+  { symbol: "TRIS3" }, { symbol: "SOJA3" }, { symbol: "DASA3" }, { symbol: "SEER3" },
+  { symbol: "MTRE3" }, { symbol: "AERI3" }, { symbol: "FIQE3" }, { symbol: "ALUP11" },
+  { symbol: "HBRE3" }, { symbol: "TECN3" }, { symbol: "VTRU3" }, { symbol: "LOGG3" },
+  { symbol: "PTBL3" }, { symbol: "JSLG3" }, { symbol: "MDNE3" }, { symbol: "FESA4" },
+  { symbol: "PRNR3" }, { symbol: "OPCT3" }, { symbol: "AMAR3" }, { symbol: "VITT3" },
+  { symbol: "BRBI11" }, { symbol: "PNVL3" }, { symbol: "ENJU3" }, { symbol: "TASA4" },
+  { symbol: "MELK3" }, { symbol: "LPSB3" }, { symbol: "ELMD3" }, { symbol: "BMOB3" },
+  { symbol: "PDTC3" }, { symbol: "TFCO4" }, { symbol: "SHUL4" }, { symbol: "DESK3" },
+  { symbol: "BOBR4" }, { symbol: "CSED3" }, { symbol: "TCSA3" }, { symbol: "LAND3" },
+  { symbol: "LEVE3" }, { symbol: "ESPA3" }, { symbol: "KLBN3" }, { symbol: "PFRM3" },
+  { symbol: "AMBP3" }, { symbol: "LIGT3" }, { symbol: "UCAS3" }, { symbol: "USIM3" },
+  { symbol: "POMO3" }, { symbol: "VLID3" }, { symbol: "BLAU3" }, { symbol: "SAPR3" },
+  { symbol: "BRST3" }, { symbol: "AGRO3" }, { symbol: "TGMA3" }, { symbol: "ROMI3" },
+  { symbol: "UNIP6" }, { symbol: "BIOM3" }, { symbol: "TAEE4" }, { symbol: "RSID3" },
+  { symbol: "CMIG3" }, { symbol: "ALPK3" }, { symbol: "SHOW3" }, { symbol: "ITSA3" },
+  { symbol: "DEXP3" }, { symbol: "BRAP3" }, { symbol: "ETER3" }, { symbol: "TAEE3" },
+  { symbol: "LUPA3" }, { symbol: "DMVF3" }, { symbol: "SANB4" }, { symbol: "SCAR3" },
+  { symbol: "INEP3" }, { symbol: "RNEW4" }, { symbol: "IGTI3" }, { symbol: "SANB3" },
+  { symbol: "OIBR4" }, { symbol: "PINE4" }, { symbol: "LVTC3" }, { symbol: "RNEW3" },
+  { symbol: "GGBR3" }, { symbol: "AALR3" }, { symbol: "OFSA3" }, { symbol: "JFEN3" },
+  { symbol: "EUCA4" }, { symbol: "NGRD3" }, { symbol: "ALLD3" }, { symbol: "WHRL4" },
+  { symbol: "EALT4" }, { symbol: "VIVR3" }, { symbol: "MBLY3" }, { symbol: "CSUD3" },
+  { symbol: "KRSA3" }, { symbol: "GOAU3" }, { symbol: "BEES3" }, { symbol: "RDNI3" },
+  { symbol: "AMAR11" }, { symbol: "FHER3" }, { symbol: "TRAD3" }, { symbol: "BMEB4" },
+  { symbol: "NUTR3" }, { symbol: "EQPA3" }, { symbol: "CAMB3" }, { symbol: "ATMP3" },
+  { symbol: "LOGN3" }, { symbol: "AVLL3" }, { symbol: "RAPT3" }, { symbol: "BRKM3" },
+  { symbol: "ALUP4" }, { symbol: "INEP4" }, { symbol: "CEBR6" }, { symbol: "TASA3" },
+  { symbol: "ALPA3" }, { symbol: "RPMG3" }, { symbol: "ENGI4" }, { symbol: "DOTZ3" },
+  { symbol: "MNPR3" }, { symbol: "ENGI3" }, { symbol: "RPAD5" }, { symbol: "EPAR3" },
+  { symbol: "VSTE3" }, { symbol: "TPIS3" }, { symbol: "PTNT4" }, { symbol: "BEES4" },
+  { symbol: "HAGA3" }, { symbol: "UNIP3" }, { symbol: "ALUP3" }, { symbol: "COCE5" },
+  { symbol: "RSUL4" }, { symbol: "RNEW11" }, { symbol: "EMAE4" }, { symbol: "ESTR4" },
+  { symbol: "ISAE3" }, { symbol: "BGIP4" }, { symbol: "BRSR3" }, { symbol: "RPAD3" },
+  { symbol: "AZEV11" }, { symbol: "BAZA3" }, { symbol: "MNDL3" }, { symbol: "OSXB3" },
+  { symbol: "CGRA4" }, { symbol: "NEXP3" }, { symbol: "WEST3" }, { symbol: "SNSY5" },
+  { symbol: "CEBR3" }, { symbol: "EALT3" }, { symbol: "PEAB4" }, { symbol: "MTSA4" },
+  { symbol: "BMEB3" }, { symbol: "GEPA4" }, { symbol: "CRPG6" }, { symbol: "CEBR5" },
+  { symbol: "BPAC3" }, { symbol: "TELB3" }, { symbol: "WLMM4" }, { symbol: "REDE3" },
+  { symbol: "WHRL3" }, { symbol: "CTSA3" }, { symbol: "EKTR4" }, { symbol: "CPLE5" },
+  { symbol: "CTSA4" }, { symbol: "CGAS3" }, { symbol: "ENMT3" }, { symbol: "ELET5" },
+  { symbol: "CRPG5" }, { symbol: "BRSR5" }, { symbol: "BPAC5" }, { symbol: "PINE3" },
+  { symbol: "PPLA11" }, { symbol: "CGAS5" }, { symbol: "BNBR3" }, { symbol: "CLSC4" },
+  { symbol: "MRSA3B" }, { symbol: "CGRA3" }, { symbol: "CTKA4" }, { symbol: "FESA3" },
+  { symbol: "MGEL4" }, { symbol: "AFLT3" }, { symbol: "DOHL3" }, { symbol: "HAGA4" },
+  { symbol: "RPAD6" }, { symbol: "TELB4" }, { symbol: "EQMA3B" }, { symbol: "DEXP4" },
+  { symbol: "CEEB3" }, { symbol: "DOHL4" }, { symbol: "FRIO3" }, { symbol: "TKNO4" },
+  { symbol: "EUCA3" }, { symbol: "BALM4" }, { symbol: "PSVM11" }, { symbol: "UNIP5" },
+  { symbol: "SOND5" }, { symbol: "MRSA6B" }, { symbol: "CEDO4" }, { symbol: "BMIN4" },
+  { symbol: "PLAS3" }, { symbol: "AHEB3" }, { symbol: "PATI4" }, { symbol: "GEPA3" },
+  { symbol: "MWET4" }, { symbol: "BSLI3" }, { symbol: "MAPT3" }, { symbol: "HOOT4" },
+  { symbol: "BIOM11" }, { symbol: "BMKS3" }, { symbol: "PTNT3" }, { symbol: "BSLI4" },
+  { symbol: "BDLL3" }, { symbol: "GPAR3" }, { symbol: "BGIP3" }, { symbol: "BMIN3" },
+  { symbol: "HETA4" }, { symbol: "MAPT4" }, { symbol: "FIEI3" }, { symbol: "HBTS5" },
+  { symbol: "PATI3" }, { symbol: "EQPA5" }, { symbol: "GSHP3" }, { symbol: "WLMM3" },
+  { symbol: "LIPR3" }, { symbol: "CLSC3" }, { symbol: "AHEB6" }, { symbol: "BRKM6" },
+  { symbol: "NORD3" }, { symbol: "TEKA4" }, { symbol: "EMAE3" }, { symbol: "BALM3" },
+  { symbol: "DASA11" }, { symbol: "MWET3" }, { symbol: "ENMT4" }, { symbol: "BAUH4" },
+  { symbol: "PEAB3" }, { symbol: "CEDO3" }, { symbol: "BDLL4" }, { symbol: "IGTI4" },
+  { symbol: "IGTI4" }
+  ];
+
+const StyledButton = styled(Button)(({ theme }) => ({
+  margin: theme.spacing(0, 0, 0, 2), // Adjust left margin to add space between radio and button
+}));
+
+export default function BadgeAutocomplete({ options = stocks, defaultSelected = [], onDataReceived, isLoading, setIsLoading }) {
+  const theme = useTheme();
+  const [selectedStocks, setSelectedStocks] = useState(defaultSelected);
+  const [period, setPeriod] = useState(12);
+
+  const handleStockChange = (event, newValue) => {
+    setSelectedStocks(newValue);
+  };
+
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+  };
+
+  const handleGenerateReport = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axios.post('https://zommaquant.com.br/api/optimize-portfolio/', {
+        stocks: selectedStocks.map(stock => stock.symbol),
+        period: period
+      });
+      
+      console.log('API Response:', response.data);
+      
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+      
+      // Process the data before passing it to the parent component
+      const processedData = JSON.parse(JSON.stringify(response.data, (key, value) =>
+        value !== value ? null : value
+      ));
+      
+      onDataReceived(processedData);
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert(`Error: ${error.message || 'An unexpected error occurred'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Box sx={{ /* ... your existing styles ... */ }}>
+      <Autocomplete
+        multiple
+        filterSelectedOptions
+        id="mean-variance-optimization"
+        options={options}
+        getOptionLabel={(option) => option.symbol}
+        value={selectedStocks}
+        onChange={handleStockChange}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            sx={{ width: '100%' }}
+            variant="outlined"
+            placeholder="Portfolio"
+            label="Ativos"
+          />
+        )}
+      />
+
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing(2) }}>
+        <StandaloneRadio onPeriodChange={handlePeriodChange} /> 
+        <StyledButton 
+          variant="contained" 
+          color="primary" 
+          onClick={handleGenerateReport}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Gerando...' : 'Gerar Relatorio'}
+        </StyledButton>
+      </Box>
+    </Box>
+  );
+}
+
+################################################################################
+
+File: .\BadgeAutocompletePage.jsx
+import React from 'react';
+import { Grid, Card, CardContent } from '@mui/material';
+import BadgeAutocomplete from './BadgeAutocomplete';
+import { styled } from '@mui/material/styles';
+
+const ContentBox = styled('div')(({ theme }) => ({
+  margin: '3px',
+  [theme.breakpoints.down('sm')]: {
+    margin: '1px',
+  },
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  height: 'fit-content',
+}));
+
+const BadgeAutocompletePage = ({ onDataReceived, isLoading, setIsLoading }) => {
+  const handleDataReceived = (data) => {
+    console.log('Data received in BadgeAutocompletePage:', data);
+    onDataReceived(data);
+  };
+
+  return (
+    <ContentBox>
+      <Grid container spacing={2} justifyContent="left">
+        <Grid item xs={12} sm={10} md={8}>
+          <Card>
+            <CardContent>
+              <BadgeAutocomplete 
+                onDataReceived={handleDataReceived}
+                isLoading={isLoading}
+                setIsLoading={setIsLoading}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </ContentBox>
+  );
+};
+
+export default BadgeAutocompletePage;
+
+################################################################################
+
+File: .\MinVarPerformanceAssetsPage.jsx
+import React from 'react';
+import { styled } from '@mui/material/styles';
+import { Card, CardContent, Typography } from '@mui/material';
+import MinVarPerformanceAssets from './echarts/MinVarPerformanceAssets';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const ChartContainer = styled('div')({
+  flexGrow: 1,
+  minHeight: '200px',
+  maxHeight: '400px',
+});
+
+const MinVarPerformanceAssetsPage = ({ data }) => {
+  const cumulativeReturns = data?.cumulative_returns || {};
+  const dataLength = Object.keys(cumulativeReturns).length;
+  const dynamicHeight = `${Math.max(200, Math.min(50 * dataLength, 400))}px`;
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <ChartContainer style={{ height: dynamicHeight }}>
+          {Object.keys(cumulativeReturns).length > 0 ? (
+            <MinVarPerformanceAssets data={cumulativeReturns} height="100%" width="100%" />
+          ) : (
+            <Typography>No data available</Typography>
+          )}
+        </ChartContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default MinVarPerformanceAssetsPage;
+
+################################################################################
+
+File: .\MinVarPerformanceIBOVPage.jsx
+import React from 'react';
+import { styled } from '@mui/material/styles';
+import { Card, CardContent, Typography } from '@mui/material';
+import MinVarPerformanceIBOV from './echarts/MinVarPerformanceIBOV';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const ChartContainer = styled('div')({
+  flexGrow: 1,
+  minHeight: '200px',
+  maxHeight: '400px',
+});
+
+const MinVarPerformanceIBOVPage = ({ data }) => {
+  const cumulativeReturns = data?.cumulative_returns || {};
+  const dataLength = Object.keys(cumulativeReturns).length;
+  const dynamicHeight = `${Math.max(200, Math.min(50 * dataLength, 400))}px`;
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <ChartContainer style={{ height: dynamicHeight }}>
+          {Object.keys(cumulativeReturns).length > 0 ? (
+            <MinVarPerformanceIBOV data={cumulativeReturns} height="100%" width="100%" />
+          ) : (
+            <Typography>No data available</Typography>
+          )}
+        </ChartContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default MinVarPerformanceIBOVPage;
+
+################################################################################
+
+File: .\MinVarStatsPage.jsx
+import React from 'react';
+import { Card, CardContent, Typography, Box } from '@mui/material';
+import MinVarStats from './table/MinVarStats';
+import { styled } from '@mui/material/styles';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const TableContainer = styled(Box)({
+  flexGrow: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: '100%',
+  overflowY: 'auto',
+});
+
+const MinVarStatsPage = ({ data }) => {
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+          Estatísticas Min. Variância
+        </Typography>
+        <TableContainer>
+          {data ? (
+            <MinVarStats data={data} />
+          ) : (
+            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+              <Typography>Carregando estatísticas... (Dados não disponíveis)</Typography>
+            </Box>
+          )}
+        </TableContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default MinVarStatsPage;
+
+################################################################################
+
+File: .\MinVarWeightsPage.jsx
+import React from 'react';
+import { Card, CardContent, Typography, Box } from '@mui/material';
+import MinVarWeights from './table/MinVarWeights';
+import { styled } from '@mui/material/styles';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const TableContainer = styled(Box)({
+  flexGrow: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: '100%',
+  overflowY: 'auto',
+});
+
+const MinVarWeightsPage = ({ data }) => {
+  if (!data) {
+    return (
+      <StyledCard>
+        <StyledCardContent>
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <Typography>Carregando dados... (Dados não disponíveis)</Typography>
+          </Box>
+        </StyledCardContent>
+      </StyledCard>
+    );
+  }
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+          Otimização Variância Mínima
+        </Typography>
+        <TableContainer>
+          <MinVarWeights data={data} />
+        </TableContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default MinVarWeightsPage;
+
+################################################################################
+
+File: .\PerformanceAssetsPage.jsx
+import React from 'react';
+import { styled } from '@mui/material/styles';
+import { Card, CardContent, Typography } from '@mui/material';
+import PerformanceAssets from './echarts/PerformanceAssets';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const ChartContainer = styled('div')({
+  flexGrow: 1,
+  minHeight: '200px',
+  maxHeight: '400px',
+});
+
+const PerformanceAssetsPage = ({ data }) => {
+  const cumulativeReturns = data?.cumulative_returns || {};
+  const dataLength = Object.keys(cumulativeReturns).length;
+  const dynamicHeight = `${Math.max(200, Math.min(50 * dataLength, 400))}px`;
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <ChartContainer style={{ height: dynamicHeight }}>
+          {Object.keys(cumulativeReturns).length > 0 ? (
+            <PerformanceAssets data={cumulativeReturns} height="100%" width="100%" />
+          ) : (
+            <Typography>No data available</Typography>
+          )}
+        </ChartContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default PerformanceAssetsPage;
+
+################################################################################
+
+File: .\PerformanceIBOVPage.jsx
+import React from 'react';
+import { styled } from '@mui/material/styles';
+import { Card, CardContent, Typography } from '@mui/material';
+import PerformanceIBOV from './echarts/PerformanceIBOV';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const ChartContainer = styled('div')({
+  flexGrow: 1,
+  minHeight: '200px',
+  maxHeight: '400px',
+});
+
+const PerformanceIBOVPage = ({ data }) => {
+  const cumulativeReturns = data?.cumulative_returns || {};
+  const dataLength = Object.keys(cumulativeReturns).length;
+  const dynamicHeight = `${Math.max(200, Math.min(50 * dataLength, 400))}px`;
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <ChartContainer style={{ height: dynamicHeight }}>
+          {Object.keys(cumulativeReturns).length > 0 ? (
+            <PerformanceIBOV data={cumulativeReturns} height="100%" width="100%" />
+          ) : (
+            <Typography>No data available</Typography>
+          )}
+        </ChartContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default PerformanceIBOVPage;
+
+################################################################################
+
+File: .\StandaloneRadio.jsx
+import { useState } from "react";
+import { Box, Radio, styled, Typography } from "@mui/material";
+import { green } from "@mui/material/colors";
+
+// STYLED COMPONENTS
+const GreenRadio = styled(Radio)(() => ({
+  color: green[400],
+  "&$checked": { color: green[600] }
+}));
+
+export default function StandaloneRadio({ onPeriodChange }) {
+  const [selectedValue, setSelectedValue] = useState("12");
+
+  function handleChange(event) {
+    const newValue = event.target.value;
+    setSelectedValue(newValue);
+    onPeriodChange(parseInt(newValue));
+  }
+
+  return (
+    <Box display="flex" flexDirection="row" alignItems="center">
+      <Box textAlign="center">
+        <Radio
+          value="6"
+          color="secondary"
+          onChange={handleChange}
+          name="radio-button-demo"
+          checked={selectedValue === "6"}
+        />
+        <Typography variant="body2">6</Typography>
+      </Box>
+
+      <Box textAlign="center">
+        <Radio
+          value="12"
+          color="secondary"
+          onChange={handleChange}
+          name="radio-button-demo"
+          checked={selectedValue === "12"}
+        />
+        <Typography variant="body2">12</Typography>
+      </Box>
+
+      <Box textAlign="center">
+        <Radio
+          value="24"
+          color="secondary"
+          onChange={handleChange}
+          name="radio-button-demo"
+          checked={selectedValue === "24"}
+        />
+        <Typography variant="body2">24</Typography>
+      </Box>
+
+      <Box textAlign="center">
+        <Radio
+          value="36"
+          color="secondary"
+          onChange={handleChange}
+          name="radio-button-demo"
+          checked={selectedValue === "36"}
+        />
+        <Typography variant="body2">36</Typography>
+      </Box>
+    </Box>
+  );
+}
+
+
+################################################################################
+
+File: .\TangencyStatsPage.jsx
+import React from 'react';
+import { Card, CardContent, Typography, Box } from '@mui/material';
+import TangencyStats from './table/TangencyStats';
+import { styled } from '@mui/material/styles';
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+}));
+
+const StyledCardContent = styled(CardContent)({
+  flexGrow: 1,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const TableContainer = styled(Box)({
+  flexGrow: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: '100%',
+  overflowY: 'auto',
+});
+
+const TangencyStatsPage = ({ data }) => {
+  if (!data || !data.stats) {
+    return (
+      <StyledCard>
+        <StyledCardContent>
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <Typography>Carregando estatísticas... (Dados não disponíveis)</Typography>
+          </Box>
+        </StyledCardContent>
+      </StyledCard>
+    );
+  }
+
+  return (
+    <StyledCard>
+      <StyledCardContent>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+          Estatísticas de Tangência
+        </Typography>
+        <TableContainer>
+          <TangencyStats data={data} />
+        </TableContainer>
+      </StyledCardContent>
+    </StyledCard>
+  );
+};
+
+export default TangencyStatsPage;
+
+################################################################################
+
+File: .\TangencyWeightsPage.jsx
+File: .\echarts\MinVarPerformanceAssets.jsx
+File: .\echarts\MinVarPerformanceIBOV.jsx
+import React from 'react';
+import { useTheme } from "@mui/material/styles";
+import ReactEcharts from "echarts-for-react";
+
+const MinVarPerformanceIBOV = ({ data = {}, height, width = '100%' }) => {
+  const theme = useTheme();
+
+  if (!data || Object.keys(data).length === 0) {
+    return <div>No cumulative returns data available</div>;
+  }
+
+  const dates = Object.keys(data);
+  const portfolioData = dates.map(date => [date, data[date].Portfolio]);
+  const benchmarkData = dates.map(date => [date, data[date].Benchmark]);
+
+  const option = {
+    title: {
+      text: 'Min. Variância vs Benchmark',
+      left: 'center',
+      textStyle: {
+        color: theme.palette.text.primary,
+        fontFamily: theme.typography.fontFamily
+      }
+    },
+    grid: { top: "15%", bottom: "10%", left: "7%", right: "3%" },
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        return params.map(param => {
+          return `${param.seriesName}: ${(param.value[1] * 100).toFixed(2)}%`;
+        }).join('<br>');
+      }
+    },
+    legend: {
+      data: ['Min. Variância', 'Benchmark'],
+      top: 30,
+      textStyle: {
+        color: theme.palette.text.secondary
+      }
+    },
+    xAxis: {
+      type: "time",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        color: theme.palette.text.secondary
+      }
+    },
+    yAxis: {
+      type: "value",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: {
+        lineStyle: { color: theme.palette.text.secondary, opacity: 0.15 }
+      },
+      axisLabel: {
+        color: theme.palette.text.secondary,
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        formatter: function(value) {
+          return (value * 100).toFixed(0) + '%';
+        }
+      }
+    },
+    series: [
+      {
+        name: 'Min. Variância',
+        data: portfolioData,
+        type: "line",
+        smooth: true,
+        symbol: 'none', // Remove data points
+        lineStyle: { width: 3 },
+        itemStyle: { color: '#000000' }
+      },
+      {
+        name: 'Benchmark',
+        data: benchmarkData,
+        type: "line",
+        smooth: true,
+        symbol: 'none', // Remove data points
+        lineStyle: { width: 3 },
+        itemStyle: { color: '#FF0000' }
+      }
+    ]
+  };
+
+  return <ReactEcharts style={{ height: height, width: width }} option={option} />;
+}
+
+export default MinVarPerformanceIBOV;
+
+################################################################################
+
+File: .\echarts\PerformanceAssets.jsx
+import React from 'react';
+import { useTheme } from "@mui/material/styles";
+import ReactEcharts from "echarts-for-react";
+
+// Function to generate random color
+const getRandomColor = () => {
+  const letters = '0123456789ABCDEF';
+  let color = '#';
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
+};
+
+const PerformanceAssets = ({ data, height, width = '100%' }) => {
+  const theme = useTheme();
+
+  if (!data || Object.keys(data).length === 0) {
+    return <div>No data available</div>;
+  }
+
+  const dates = Object.keys(data);
+  const assets = Object.keys(data[dates[0]]).filter(asset => asset !== 'Benchmark');
+
+  // Generate a color map for assets
+  const colorMap = assets.reduce((acc, asset) => {
+    acc[asset] = asset === 'Portfolio' ? '#000000' : getRandomColor();
+    return acc;
+  }, {});
+
+  const series = assets.map(asset => ({
+    name: asset,
+    type: 'line',
+    data: dates.map(date => [date, data[date][asset]]),
+    smooth: true,
+    symbol: 'none', // Remove data points
+    lineStyle: { 
+      width: asset === 'Portfolio' ? 3 : 2,
+      color: colorMap[asset]
+    },
+    itemStyle: {
+      color: colorMap[asset]
+    }
+  }));
+
+  const option = {
+    title: {
+      text: 'Performance - Ativos',
+      left: 'center',
+      textStyle: {
+        color: theme.palette.text.primary,
+        fontFamily: theme.typography.fontFamily
+      }
+    },
+    grid: { top: "15%", bottom: "10%", left: "7%", right: "3%" },
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>';
+        params.forEach(param => {
+          result += param.marker + ' ' + param.seriesName + ': ' + (param.value[1] * 100).toFixed(2) + '%<br/>';
+        });
+        return result;
+      }
+    },
+    legend: {
+      data: assets,
+      top: 30,
+      textStyle: {
+        color: theme.palette.text.secondary
+      }
+    },
+    xAxis: {
+      type: "time",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        color: theme.palette.text.secondary
+      }
+    },
+    yAxis: {
+      type: "value",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: {
+        lineStyle: { color: theme.palette.text.secondary, opacity: 0.15 }
+      },
+      axisLabel: {
+        color: theme.palette.text.secondary,
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        formatter: function(value) {
+          return (value * 100).toFixed(0) + '%';
+        }
+      }
+    },
+    series: series
+  };
+
+  return <ReactEcharts style={{ height: height, width: width }} option={option} />;
+}
+
+export default PerformanceAssets;
+
+################################################################################
+
+File: .\echarts\PerformanceIBOV.jsx
+import React from 'react';
+import { useTheme } from "@mui/material/styles";
+import ReactEcharts from "echarts-for-react";
+
+const PerformanceIBOV = ({ data = {}, height, width = '100%' }) => {
+  const theme = useTheme();
+
+  if (Object.keys(data).length === 0) {
+    return <div>No data available</div>;
+  }
+
+  const dates = Object.keys(data);
+  const portfolioData = dates.map(date => [date, data[date].Portfolio]);
+  const benchmarkData = dates.map(date => [date, data[date].Benchmark]);
+
+  const option = {
+    title: {
+      text: 'Performance vs Benchmark',
+      left: 'center',
+      textStyle: {
+        color: theme.palette.text.primary,
+        fontFamily: theme.typography.fontFamily
+      }
+    },
+    grid: { top: "15%", bottom: "10%", left: "7%", right: "3%" },
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        return params.map(param => {
+          return `${param.seriesName}: ${(param.value[1] * 100).toFixed(2)}%`;
+        }).join('<br>');
+      }
+    },
+    legend: {
+      data: ['Portfolio', 'Benchmark'],
+      top: 30,
+      textStyle: {
+        color: theme.palette.text.secondary
+      }
+    },
+    xAxis: {
+      type: "time",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        color: theme.palette.text.secondary
+      }
+    },
+    yAxis: {
+      type: "value",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: {
+        lineStyle: { color: theme.palette.text.secondary, opacity: 0.15 }
+      },
+      axisLabel: {
+        color: theme.palette.text.secondary,
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamily,
+        formatter: function(value) {
+          return (value * 100).toFixed(0) + '%';
+        }
+      }
+    },
+    series: [
+      {
+        name: 'Portfolio',
+        data: portfolioData,
+        type: "line",
+        smooth: true,
+        symbol: 'none', // Remove data points
+        lineStyle: { width: 3 }, // Reduced from 4 to 3
+        itemStyle: { color: '#000000' }
+      },
+      {
+        name: 'Benchmark',
+        data: benchmarkData,
+        type: "line",
+        smooth: true,
+        symbol: 'none', // Remove data points
+        lineStyle: { width: 3 }, // Reduced from 4 to 3
+        itemStyle: { color: '#FF0000' }
+      }
+    ]
+  };
+
+  return <ReactEcharts style={{ height: height, width: width }} option={option} />;
+}
+
+export default PerformanceIBOV;
+
+################################################################################
+
+File: .\table\MinVarStats.jsx
+import React from 'react';
+import {
+  Table,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableContainer,
+  Typography
+} from "@mui/material";
+import { styled } from '@mui/material/styles';
+
+const StyledTableContainer = styled(TableContainer)({
+  flexGrow: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: '100%',
+  overflowY: 'auto',
+});
+
+const StyledTable = styled(Table)({
+  minWidth: 'auto',
+  "& .MuiTableCell-root": {
+    padding: '4px 8px',
+    fontSize: '0.7rem',
+  },
+});
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  '&:nth-of-type(odd)': {
+    backgroundColor: theme.palette.action.hover,
+  },
+}));
+
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+  fontWeight: 'bold',
+  padding: '6px 8px',
+  fontSize: '0.75rem',
+}));
+
+const formatValue = (key, value) => {
+  if (typeof value === 'number') {
+    if (key.toLowerCase().includes('return') || key.toLowerCase().includes('drawdown') || key === 'Daily value at risk') {
+      return `${(value * 100).toFixed(1)}%`;
+    }
+    return value.toFixed(2);
+  }
+  return value;
+};
+
+export default function MinVarStats({ data }) {
+  const stats = data?.stats || {};
+
+  if (!stats || Object.keys(stats).length === 0) {
+    return <Typography>Nenhuma estatística disponível</Typography>;
+  }
+
+  const subscribarList = [
+    { name: "Retorno Anual", value: formatValue("Annual return", stats["Annual return"]) },
+    { name: "Retorno Acum.", value: formatValue("Cumulative returns", stats["Cumulative returns"]) },
+    { name: "Vol. Anual", value: formatValue("Annual volatility", stats["Annual volatility"]) },
+    { name: "Sharpe Ratio", value: formatValue("Sharpe ratio", stats["Sharpe ratio"]) },
+    { name: "Calmar Ratio", value: formatValue("Calmar ratio", stats["Calmar ratio"]) },
+    { name: "Estabilidade", value: formatValue("Stability", stats["Stability"]) },
+    { name: "Máx Drawdown", value: formatValue("Max drawdown", stats["Max drawdown"]) },
+    { name: "Omega Ratio", value: formatValue("Omega ratio", stats["Omega ratio"]) },
+    { name: "Sortino Ratio", value: formatValue("Sortino ratio", stats["Sortino ratio"]) },
+    { name: "Assimetria", value: formatValue("Skew", stats["Skew"]) },
+    { name: "Curtose", value: formatValue("Kurtosis", stats["Kurtosis"]) },
+    { name: "Tail Ratio", value: formatValue("Tail ratio", stats["Tail ratio"]) },
+    { name: "VaR 1d", value: formatValue("Daily value at risk", stats["Daily value at risk"]) },
+  ];
+
+  return (
+    <StyledTableContainer>
+      <StyledTable size="small" aria-label="tabela de estatísticas de variância mínima">
+        <TableBody>
+          {subscribarList.map((stat, index) => (
+            <StyledTableRow key={index}>
+              <StyledTableCell>{stat.name}</StyledTableCell>
+              <TableCell align="right">
+                {stat.value !== undefined ? stat.value : 'N/A'}
+              </TableCell>
+            </StyledTableRow>
+          ))}
+        </TableBody>
+      </StyledTable>
+    </StyledTableContainer>
+  );
+}
+
+################################################################################
+
+File: .\table\MinVarWeights.jsx
+import React from 'react';
+import {
+  Table,
+  styled,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableContainer,
+  Paper
+} from "@mui/material";
+
+const StyledTable = styled(Table)(({ theme }) => ({
+  whiteSpace: "pre",
+  "& thead": {
+    "& tr": { 
+      "& th": { 
+        paddingLeft: 8,
+        paddingRight: 8,
+        backgroundColor: theme.palette.primary.main,
+        color: theme.palette.primary.contrastText,
+      } 
+    }
+  },
+  "& tbody": {
+    "& tr": { 
+      "& td": { 
+        paddingLeft: 8,
+        paddingRight: 8,
+        textTransform: "capitalize" 
+      } 
+    }
+  }
+}));
+
+export default function MinVarWeights({ data }) {
+  const weights = data?.weights || {};
+
+  const weightsList = Object.entries(weights).map(([asset, weight]) => ({
+    name: asset,
+    peso: `${(weight * 100).toFixed(2)}%`
+  }));
+
+  return (
+    <TableContainer component={Paper} sx={{ maxWidth: 150, mx: 'auto' }}>
+      <StyledTable size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell align="center">Ativo</TableCell>
+            <TableCell align="center">Peso</TableCell>
+          </TableRow>
+        </TableHead>
+
+        <TableBody>
+          {weightsList.map((asset, index) => (
+            <TableRow key={index}>
+              <TableCell align="center">{asset.name}</TableCell>
+              <TableCell align="center">{asset.peso}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </StyledTable>
+    </TableContainer>
+  );
+}
+
+################################################################################
+
+File: .\table\TangencyStats.jsx
+import React from 'react';
+import {
+  Table,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableContainer,
+  Typography
+} from "@mui/material";
+import { styled } from '@mui/material/styles';
+
+const StyledTableContainer = styled(TableContainer)({
+  flexGrow: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  maxHeight: '100%',
+  overflowY: 'auto',
+});
+
+const StyledTable = styled(Table)({
+  minWidth: 'auto',
+  "& .MuiTableCell-root": {
+    padding: '4px 8px',
+    fontSize: '0.7rem',
+  },
+});
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  '&:nth-of-type(odd)': {
+    backgroundColor: theme.palette.action.hover,
+  },
+}));
+
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+  fontWeight: 'bold',
+  padding: '6px 8px',
+  fontSize: '0.75rem',
+}));
+
+const formatValue = (key, value) => {
+  if (typeof value === 'number') {
+    if (key.toLowerCase().includes('return') || key.toLowerCase().includes('drawdown') || key === 'Daily value at risk') {
+      return `${(value * 100).toFixed(1)}%`;
+    }
+    return value.toFixed(2);
+  }
+  return value;
+};
+
+export default function TangencyStats({ data }) {
+  console.log('TangencyStats received data:', data);
+  console.log('Data in TangencyStats:', data);
+  const stats = data?.stats || {};
+  console.log('Processed stats:', stats);
+  
+  if (!stats) {
+    return <Typography>Nenhuma estatística disponível</Typography>;
+  }
+  
+  const subscribarList = [
+    { name: "Retorno Anual", value: formatValue("Annual return", stats["Annual return"]) },
+    { name: "Retorno Acum.", value: formatValue("Cumulative returns", stats["Cumulative returns"]) },
+    { name: "Vol. Anual", value: formatValue("Annual volatility", stats["Annual volatility"]) },
+    { name: "Sharpe Ratio", value: formatValue("Sharpe ratio", stats["Sharpe ratio"]) },
+    { name: "Calmar Ratio", value: formatValue("Calmar ratio", stats["Calmar ratio"]) },
+    { name: "Estabilidade", value: formatValue("Stability", stats["Stability"]) },
+    { name: "Máx Drawdown", value: formatValue("Max drawdown", stats["Max drawdown"]) },
+    { name: "Omega Ratio", value: formatValue("Omega ratio", stats["Omega ratio"]) },
+    { name: "Sortino Ratio", value: formatValue("Sortino ratio", stats["Sortino ratio"]) },
+    { name: "Assimetria", value: formatValue("Skew", stats["Skew"]) },
+    { name: "Curtose", value: formatValue("Kurtosis", stats["Kurtosis"]) },
+    { name: "Tail Ratio", value: formatValue("Tail ratio", stats["Tail ratio"]) },
+    { name: "VaR 1d", value: formatValue("Daily value at risk", stats["Daily value at risk"]) },
+  ];
+
+  return (
+    <StyledTableContainer>
+      <StyledTable size="small" aria-label="tabela de estatísticas de tangência">
+        <TableBody>
+          {subscribarList.map((stat, index) => (
+            <StyledTableRow key={index}>
+              <StyledTableCell>{stat.name}</StyledTableCell>
+              <TableCell align="right">
+                {stat.value !== undefined ? stat.value : 'N/A'}
+              </TableCell>
+            </StyledTableRow>
+          ))}
+        </TableBody>
+      </StyledTable>
+    </StyledTableContainer>
+  );
+}
+
+################################################################################
+
+File: .\table\TangencyWeights.jsx
+import React from 'react';
+import {
+  Table,
+  styled,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableContainer,
+  Paper
+} from "@mui/material";
+
+const StyledTable = styled(Table)(({ theme }) => ({
+  whiteSpace: "pre",
+  "& thead": {
+    "& tr": { 
+      "& th": { 
+        paddingLeft: 8,
+        paddingRight: 8,
+        backgroundColor: theme.palette.primary.main,
+        color: theme.palette.primary.contrastText,
+      } 
+    }
+  },
+  "& tbody": {
+    "& tr": { 
+      "& td": { 
+        paddingLeft: 8,
+        paddingRight: 8,
+        textTransform: "none" // Changed from "capitalize" to preserve special characters
+      } 
+    }
+  }
+}));
+
+export default function TangencyWeights({ weights }) {
+  const weightsList = Object.entries(weights || {}).map(([asset, weight]) => ({
+    name: decodeURIComponent(asset), // Decode the asset name
+    peso: `${(weight * 100).toFixed(2)}%`
+  }));
+
+  return (
+    <TableContainer component={Paper} sx={{ maxWidth: 150, mx: 'auto' }}>
+      <StyledTable size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell align="center">Ativo</TableCell>
+            <TableCell align="center">Peso</TableCell>
+          </TableRow>
+        </TableHead>
+
+        <TableBody>
+          {weightsList.map((asset, index) => (
+            <TableRow key={index}>
+              <TableCell align="center">{asset.name}</TableCell>
+              <TableCell align="center">{asset.peso}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </StyledTable>
+    </TableContainer>
+  );
+}
+
+################################################################################
+
