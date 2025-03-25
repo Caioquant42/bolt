@@ -1,0 +1,1 @@
+Adicionar ATR, Entropia(API do Oplab)
