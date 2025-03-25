@@ -1,0 +1,31 @@
+from flask import Blueprint
+from flask_restful import Api
+from .routes import *
+
+bp = Blueprint('api', __name__)
+api = Api(bp)
+
+api.add_resource(IBOVResource, '/ibov')
+api.add_resource(IBOVSTATICResource, '/ibovstatic')
+api.add_resource(VolatilityAnalysisResource, '/volatility')
+api.add_resource(CumulativePerformanceResource, '/performance')
+api.add_resource(RRGDataResource, '/rrg')
+api.add_resource(FluxoDDMResource, '/fluxo')
+api.add_resource(CointegrationResource, '/cointegration')
+api.add_resource(CurrencyCointegrationResource, '/currency_cointegration')
+api.add_resource(QuantPortResource, '/quant_port')
+api.add_resource(CollarAnalysisResource, '/collar_analysis')
+api.add_resource(InvertedCollarAnalysisResource, '/inverted_collar_analysis')
+api.add_resource(RecommendationsAnalysisResource, '/recommendations')
+api.add_resource(RecommendationsNASDAQAnalysisResource, '/nasdaq_recommendations')
+api.add_resource(RecommendationsNYSEAnalysisResource, '/nyse_recommendations')
+api.add_resource(ScreenerAnalysisResource, '/screener')
+api.add_resource(SurvivalLomaxAnalysisResource, '/survival_lomax')
+api.add_resource(DividendAgendaAnalysisResource, '/dividend_agenda')
+api.add_resource(HistoricalDYAnalysisResource, '/historical_dy')
+api.add_resource(StatementsAnalysisResource, '/statements')
+api.add_resource(FundamentalSummaryAnalysisResource, '/fundamental_summary')
+api.add_resource(OptimizationResource, '/optimize')
+api.add_resource(BootstrapResource, '/bootstrap')
+api.add_resource(SurfaceAnalysisResource, '/surface')
+bp.add_url_rule('/', 'index', index)
