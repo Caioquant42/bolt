@@ -1,4 +1,0 @@
-./
-    seecodesv3.py
-    echarts/
-    table/
